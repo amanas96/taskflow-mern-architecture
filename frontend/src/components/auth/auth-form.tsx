@@ -30,20 +30,27 @@ export function AuthForm({ type }: { type: "login" | "register" }) {
 
   const onSubmit = async (values: z.infer<typeof authSchema>) => {
     try {
-      const res = await api.post(
-        type === "login" ? "/auth/login" : "/auth/register",
-        values,
+      const res = await fetch(`/api/auth/proxy?type=${type}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.message || "Auth failed");
+
+      // 2. Set global Zustand state
+      setAuth(data.user, data.accessToken);
+
+      toast.success(
+        `${type === "login" ? "Login" : "Registration"} successful!`,
       );
 
-      // 1. Set global state
-      setAuth(res.data.user, res.data.accessToken);
-
-      toast.success("Login successful! Redirecting...");
-
-      // 2. Force a hard redirect to bypass any stale Middleware state
+      // 3. Hard redirect so Middleware sees the new Vercel cookie
       window.location.href = "/tasks";
     } catch (error: any) {
-      toast.error(error.response?.data?.message || "Invalid credentials");
+      toast.error(error.message || "Something went wrong");
     }
   };
 
