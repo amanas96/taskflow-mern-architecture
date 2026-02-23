@@ -41,8 +41,8 @@ export const refresh = async (req: Request, res: Response) => {
   // 4. Set new cookie and return new access token
   res.cookie("refreshToken", newRefreshToken, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
+    secure: true,
+    sameSite: "none",
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 
@@ -71,8 +71,8 @@ export const login = async (req: Request, res: Response) => {
   // Set Refresh Token in httpOnly Cookie
   res.cookie("refreshToken", refreshToken, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
+    secure: true,
+    sameSite: "none",
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 

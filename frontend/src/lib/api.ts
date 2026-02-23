@@ -2,8 +2,10 @@
 import axios from "axios";
 import { useAuthStore } from "@/store/use-auth-store";
 
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+
 export const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api",
+  baseURL: BASE_URL,
   withCredentials: true,
 });
 
@@ -19,19 +21,37 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-      try {
-       
-        const res = await api.post("/auth/refresh");
-        const newToken = res.data.accessToken;
 
+    // 1. Check if it's a 401 and not already retried
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      // 2. IMPORTANT: If the failed request WAS the refresh call, stop immediately
+      if (originalRequest.url?.includes("/auth/refresh")) {
+        useAuthStore.getState().logout();
+        return Promise.reject(error);
+      }
+
+      originalRequest._retry = true;
+
+      try {
+        // 3. Use a CLEAN axios instance (not 'api') to avoid the loop
+        const res = await axios.post(
+          `${BASE_URL}/auth/refresh`,
+          {},
+          { withCredentials: true },
+        );
+
+        const newToken = res.data.accessToken;
         useAuthStore.getState().setAccessToken(newToken);
+
+        // 4. Update the failed request's header and retry
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
         return api(originalRequest);
       } catch (refreshError) {
         useAuthStore.getState().logout();
-        window.location.href = "/login";
+        // Only redirect if we are in the browser
+        if (typeof window !== "undefined") {
+          window.location.href = "/login";
+        }
         return Promise.reject(refreshError);
       }
     }
