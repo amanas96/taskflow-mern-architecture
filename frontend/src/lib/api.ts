@@ -37,7 +37,10 @@ api.interceptors.response.use(
         const res = await axios.post(
           `${BASE_URL}/auth/refresh`,
           {},
-          { withCredentials: true },
+          {
+            withCredentials: true,
+            headers: { "Content-Type": "application/json" },
+          },
         );
 
         const newToken = res.data.accessToken;
