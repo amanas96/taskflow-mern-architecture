@@ -4,9 +4,9 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL!;
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { type: string } },
+  context: { params: Promise<{ type: string }> },
 ) {
-  const { type } = params;
+  const { type } = await context.params;
 
   try {
     const body = await request.json();
@@ -25,7 +25,6 @@ export async function POST(
 
     const res = NextResponse.json(data);
 
-    // Set refresh cookie on Vercel domain
     if (data.refreshToken) {
       res.cookies.set("refreshToken", data.refreshToken, {
         httpOnly: true,
