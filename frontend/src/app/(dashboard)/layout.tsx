@@ -3,7 +3,7 @@
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { useAuthStore } from "@/store/use-auth-store";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { Loader2 } from "lucide-react";
 
 export default function DashboardLayout({
@@ -11,19 +11,17 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { accessToken } = useAuthStore();
+  const { accessToken, hasHydrated } = useAuthStore();
   const router = useRouter();
-  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
-    setIsMounted(true);
-
-    if (!accessToken) {
-      router.push("/login");
+    if (hasHydrated && !accessToken) {
+      router.replace("/login");
     }
-  }, [accessToken, router]);
+  }, [hasHydrated, accessToken, router]);
 
-  if (!isMounted || !accessToken) {
+  // Wait for Zustand hydration
+  if (!hasHydrated) {
     return (
       <div className="h-screen w-full flex items-center justify-center bg-slate-50">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -31,12 +29,14 @@ export default function DashboardLayout({
     );
   }
 
+  // After hydration, if no token — layout will redirect
+  if (!accessToken) {
+    return null;
+  }
+
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50/50">
-      {/* Fixed Sidebar */}
       <Sidebar />
-
-      {/* Main Scrollable Content */}
       <main className="flex-1 overflow-y-auto relative">
         <div className="container mx-auto">{children}</div>
       </main>

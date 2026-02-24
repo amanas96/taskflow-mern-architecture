@@ -1,22 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { useAuthStore } from "@/store/use-auth-store";
 import { api } from "@/lib/api";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  const [queryClient] = useState(() => new QueryClient());
   const pathname = usePathname();
-  const { accessToken, setAccessToken } = useAuthStore();
+  const { hasHydrated, setAccessToken } = useAuthStore();
+  const queryClient = new QueryClient();
 
   useEffect(() => {
-    // ❌ Do NOT refresh on login
+    if (!hasHydrated) return;
     if (pathname === "/login") return;
-
-    // ❌ Do NOT refresh if we already have access token
-    if (accessToken) return;
 
     api
       .post("/auth/refresh")
@@ -28,7 +25,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       .catch(() => {
         // silently ignore
       });
-  }, [pathname, accessToken, setAccessToken]);
+  }, [pathname, hasHydrated, setAccessToken]);
 
   return (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
