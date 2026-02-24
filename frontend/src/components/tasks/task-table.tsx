@@ -55,13 +55,16 @@ export function TaskTable({ tasks, pagination }: TaskTableProps) {
     mutationFn: ({ id, status }: { id: string; status: string }) =>
       api.patch(`/tasks/${id}`, { status }),
 
-    // Optimistic Update: Update UI before server responds
     onMutate: async ({ id, status }) => {
       await queryClient.cancelQueries({ queryKey: ["tasks"] });
-      const previousTasks = queryClient.getQueryData(["tasks"]);
 
-      queryClient.setQueryData(["tasks"], (old: any) => {
+      const previousData = queryClient.getQueriesData({
+        queryKey: ["tasks"],
+      });
+
+      queryClient.setQueriesData({ queryKey: ["tasks"] }, (old: any) => {
         if (!old) return old;
+
         return {
           ...old,
           tasks: old.tasks.map((t: any) =>
@@ -70,13 +73,16 @@ export function TaskTable({ tasks, pagination }: TaskTableProps) {
         };
       });
 
-      return { previousTasks };
+      return { previousData };
     },
+
     onError: (err, variables, context) => {
-      // Rollback on error
-      queryClient.setQueryData(["tasks"], context?.previousTasks);
+      context?.previousData?.forEach(([key, value]) => {
+        queryClient.setQueryData(key, value);
+      });
       toast.error("Failed to update status");
     },
+
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
     },

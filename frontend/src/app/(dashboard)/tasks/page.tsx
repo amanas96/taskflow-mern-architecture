@@ -24,6 +24,8 @@ export default function TasksPage() {
       });
       return res.data;
     },
+    placeholderData: (previousData) => previousData,
+    staleTime: 5000,
   });
 
   return (
