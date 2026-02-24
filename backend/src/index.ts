@@ -18,6 +18,8 @@ app.use(
       "http://localhost:3000",
       "https://taskflow-mern-architecture.onrender.com",
       "https://taskflow-mern-architecture.vercel.app",
+      "https://taskflow-mern-architecture-git-main-amanas96s-projects.vercel.app",
+      "https://taskflow-mern-architecture-2edm46sft-amanas96s-projects.vercel.app",
     ],
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
