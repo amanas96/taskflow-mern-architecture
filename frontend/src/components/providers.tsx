@@ -9,11 +9,14 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
   const pathname = usePathname();
-  const { setAccessToken } = useAuthStore();
+  const { accessToken, setAccessToken } = useAuthStore();
 
   useEffect(() => {
-    // 🚨 DO NOT refresh on login page
+    // ❌ Do NOT refresh on login
     if (pathname === "/login") return;
+
+    // ❌ Do NOT refresh if we already have access token
+    if (accessToken) return;
 
     api
       .post("/auth/refresh")
@@ -23,9 +26,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
         }
       })
       .catch(() => {
-        // ignore 401 silently
+        // silently ignore
       });
-  }, [pathname, setAccessToken]);
+  }, [pathname, accessToken, setAccessToken]);
 
   return (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
