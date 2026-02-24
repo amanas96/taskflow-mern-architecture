@@ -26,7 +26,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !originalRequest._retry) {
       // 2. IMPORTANT: If the failed request WAS the refresh call, stop immediately
       if (originalRequest.url?.includes("/auth/refresh")) {
-        useAuthStore.getState().logout();
+        // useAuthStore.getState().logout();
         return Promise.reject(error);
       }
 
