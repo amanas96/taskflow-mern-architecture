@@ -2,14 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL!;
 
+// ======================
+// PATCH /api/tasks/[id]
+// ======================
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  context: { params: Promise<{ id: string }> },
 ) {
   try {
+    const { id } = await context.params;
     const body = await request.json();
 
-    const response = await fetch(`${BACKEND_URL}/tasks/${params.id}`, {
+    const response = await fetch(`${BACKEND_URL}/tasks/${id}`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
@@ -32,12 +36,17 @@ export async function PATCH(
   }
 }
 
+// ======================
+// DELETE /api/tasks/[id]
+// ======================
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  context: { params: Promise<{ id: string }> },
 ) {
   try {
-    const response = await fetch(`${BACKEND_URL}/tasks/${params.id}`, {
+    const { id } = await context.params;
+
+    const response = await fetch(`${BACKEND_URL}/tasks/${id}`, {
       method: "DELETE",
       headers: {
         Authorization: request.headers.get("authorization") || "",
