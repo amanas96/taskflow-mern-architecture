@@ -5,7 +5,7 @@ import { generateTokens } from "../services/token.services.js";
 import bcrypt from "bcrypt";
 
 export const refresh = async (req: Request, res: Response) => {
-  const refreshToken = req.cookies.refreshToken;
+  const refreshToken = req.body.refreshToken;
 
   if (!refreshToken) {
     return res.status(401).json({ message: "No refresh token" });
@@ -39,11 +39,9 @@ export const refresh = async (req: Request, res: Response) => {
   });
 
   // 4. Set new cookie and return new access token
-  res.cookie("refreshToken", newRefreshToken, {
-    httpOnly: true,
-    secure: true,
-    sameSite: "none",
-    maxAge: 7 * 24 * 60 * 60 * 1000,
+  res.json({
+    accessToken,
+    refreshToken: newRefreshToken,
   });
 
   res.json({ accessToken });
@@ -69,11 +67,10 @@ export const login = async (req: Request, res: Response) => {
   });
 
   // Set Refresh Token in httpOnly Cookie
-  res.cookie("refreshToken", refreshToken, {
-    httpOnly: true,
-    secure: true,
-    sameSite: "none",
-    maxAge: 7 * 24 * 60 * 60 * 1000,
+  res.json({
+    accessToken,
+    refreshToken,
+    user: { id: user.id, email: user.email },
   });
 
   // Access Token goes in the JSON body

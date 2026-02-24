@@ -15,7 +15,6 @@ app.use(helmet());
 app.use(
   cors({
     origin: [
-      "http://localhost:3000",
       "https://taskflow-mern-architecture.onrender.com",
       "https://taskflow-mern-architecture.vercel.app",
       "https://taskflow-mern-architecture-git-main-amanas96s-projects.vercel.app",
