@@ -15,7 +15,6 @@ import { Button } from "@/components/ui/button";
 import { Trash2, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react"; // 👈 add this
 
 interface PaginationData {
   total: number;
@@ -34,9 +33,12 @@ export function TaskTable({ tasks, pagination }: TaskTableProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // 👇 Track which specific task is being deleted/toggled
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const page = Number(searchParams.get("page")) || 1;
+  const status = searchParams.get("status") || "all";
+  const search = searchParams.get("search") || "";
+
+  // ✅ Must match the queryKey in page.tsx exactly
+  const queryKey = ["tasks", { page, status, search }];
 
   const handlePageChange = (newPage: number) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -44,51 +46,86 @@ export function TaskTable({ tasks, pagination }: TaskTableProps) {
     router.push(`?${params.toString()}`);
   };
 
+  // ================================
+  // DELETE MUTATION (OPTIMISTIC)
+  // ================================
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => {
-      setDeletingId(id); // 👈 track which one
-      return api.delete(`/tasks/${id}`);
+    mutationFn: (id: string) => api.delete(`/tasks/${id}`),
+
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey });
+
+      const previousData = queryClient.getQueryData(queryKey);
+
+      queryClient.setQueryData(queryKey, (old: any) => {
+        if (!old) return old;
+
+        const newTotal = (old.pagination?.total ?? 0) - 1;
+        const limit = old.pagination?.limit ?? 10;
+
+        return {
+          ...old,
+          tasks: old.tasks.filter((t: any) => t.id !== id),
+          pagination: {
+            ...old.pagination,
+            total: newTotal,
+            totalPages: Math.max(Math.ceil(newTotal / limit), 1),
+          },
+        };
+      });
+
+      return { previousData };
     },
-    onSettled: () => setDeletingId(null), // 👈 always clear
-    onSuccess: () => {
+
+    onError: (_err, _id, context) => {
+      queryClient.setQueryData(queryKey, context?.previousData);
+      toast.error("Failed to delete task");
+    },
+
+    onSuccess: () => toast.success("Task deleted successfully"),
+
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks"], exact: false });
-      toast.success("Task deleted successfully");
     },
-    onError: () => toast.error("Failed to delete task"),
   });
 
+  // ================================
+  // STATUS TOGGLE MUTATION (OPTIMISTIC)
+  // ================================
   const toggleMutation = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: string }) => {
-      setTogglingId(id); // 👈 track which one
-      return api.patch(`/tasks/${id}`, { status });
-    },
-    onMutate: async ({ id, status }) => {
-      await queryClient.cancelQueries({ queryKey: ["tasks"] });
-      const previousData = queryClient.getQueriesData({ queryKey: ["tasks"] });
-      queryClient.setQueriesData({ queryKey: ["tasks"] }, (old: any) => {
+    mutationFn: ({ id, status }: { id: string; status: string }) =>
+      api.patch(`/tasks/${id}`, { status }),
+
+    onMutate: async ({ id, status: newStatus }) => {
+      await queryClient.cancelQueries({ queryKey });
+
+      const previousData = queryClient.getQueryData(queryKey);
+
+      queryClient.setQueryData(queryKey, (old: any) => {
         if (!old) return old;
         return {
           ...old,
           tasks: old.tasks.map((t: any) =>
-            t.id === id ? { ...t, status } : t,
+            t.id === id ? { ...t, status: newStatus } : t,
           ),
         };
       });
+
       return { previousData };
     },
-    onError: (err, variables, context) => {
-      context?.previousData?.forEach(([key, value]) => {
-        queryClient.setQueryData(key, value);
-      });
+
+    onError: (_err, _vars, context) => {
+      queryClient.setQueryData(queryKey, context?.previousData);
       toast.error("Failed to update status");
     },
+
     onSettled: () => {
-      setTogglingId(null); // 👈 always clear
       queryClient.invalidateQueries({ queryKey: ["tasks"], exact: false });
     },
   });
 
-  const totalPages = Math.max(pagination.totalPages, 1); // never less than 1
+  // ✅ Safe totalPages — never NaN or 0
+  const totalPages = Math.max(Number(pagination?.totalPages) || 1, 1);
 
   return (
     <div className="space-y-4">
@@ -115,20 +152,26 @@ export function TaskTable({ tasks, pagination }: TaskTableProps) {
             ) : (
               tasks.map((task) => {
                 const isCompleted = task.status === "DONE";
-                const isDeleting = deletingId === task.id; // 👈 per-task check
-                const isToggling = togglingId === task.id; // 👈 per-task check
+
+                // ✅ Per-task loading checks using mutation variables
+                const isDeleting =
+                  deleteMutation.isPending &&
+                  deleteMutation.variables === task.id;
+
+                const isToggling =
+                  toggleMutation.isPending &&
+                  toggleMutation.variables?.id === task.id;
 
                 return (
                   <TableRow key={task.id} className="group transition-colors">
                     <TableCell>
                       <Checkbox
                         checked={isCompleted}
-                        disabled={isToggling} // 👈 only this task's checkbox
+                        disabled={isToggling}
                         onCheckedChange={() => {
-                          const nextStatus = isCompleted ? "TODO" : "DONE";
                           toggleMutation.mutate({
                             id: task.id,
-                            status: nextStatus,
+                            status: isCompleted ? "TODO" : "DONE",
                           });
                         }}
                       />
@@ -172,29 +215,31 @@ export function TaskTable({ tasks, pagination }: TaskTableProps) {
         </Table>
       </div>
 
+      {/* PAGINATION */}
       <div className="flex items-center justify-between px-2 py-4 border-t">
         <div className="text-sm text-muted-foreground font-medium">
           Showing <span className="text-foreground">{tasks.length}</span> of{" "}
-          <span className="text-foreground">{pagination.total}</span> tasks
+          <span className="text-foreground">{pagination?.total ?? 0}</span>{" "}
+          tasks
         </div>
         <div className="flex items-center space-x-2">
           <Button
             variant="outline"
             size="sm"
-            onClick={() => handlePageChange(pagination.page - 1)}
-            disabled={pagination.page <= 1}
+            onClick={() => handlePageChange(page - 1)}
+            disabled={page <= 1}
             className="h-8 w-8 p-0"
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <div className="text-sm font-medium">
-            Page {pagination.page} of {totalPages}
+            Page {page} of {totalPages}
           </div>
           <Button
             variant="outline"
             size="sm"
-            onClick={() => handlePageChange(pagination.page + 1)}
-            disabled={pagination.page >= totalPages}
+            onClick={() => handlePageChange(page + 1)}
+            disabled={page >= totalPages}
             className="h-8 w-8 p-0"
           >
             <ChevronRight className="h-4 w-4" />
