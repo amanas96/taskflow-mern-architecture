@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Trash2, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useState } from "react"; // 👈 add this
 
 interface PaginationData {
   total: number;
@@ -33,38 +34,39 @@ export function TaskTable({ tasks, pagination }: TaskTableProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Helper to change pages via URL
+  // 👇 Track which specific task is being deleted/toggled
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+
   const handlePageChange = (newPage: number) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set("page", newPage.toString());
     router.push(`?${params.toString()}`);
   };
 
-  // --- DELETE MUTATION ---
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.delete(`/tasks/${id}`),
+    mutationFn: (id: string) => {
+      setDeletingId(id); // 👈 track which one
+      return api.delete(`/tasks/${id}`);
+    },
+    onSettled: () => setDeletingId(null), // 👈 always clear
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
-      toast.success("Task deleted");
+      queryClient.invalidateQueries({ queryKey: ["tasks"], exact: false });
+      toast.success("Task deleted successfully");
     },
     onError: () => toast.error("Failed to delete task"),
   });
 
-  // --- TOGGLE STATUS MUTATION (Uses existing updateTask endpoint) ---
   const toggleMutation = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: string }) =>
-      api.patch(`/tasks/${id}`, { status }),
-
+    mutationFn: ({ id, status }: { id: string; status: string }) => {
+      setTogglingId(id); // 👈 track which one
+      return api.patch(`/tasks/${id}`, { status });
+    },
     onMutate: async ({ id, status }) => {
       await queryClient.cancelQueries({ queryKey: ["tasks"] });
-
-      const previousData = queryClient.getQueriesData({
-        queryKey: ["tasks"],
-      });
-
+      const previousData = queryClient.getQueriesData({ queryKey: ["tasks"] });
       queryClient.setQueriesData({ queryKey: ["tasks"] }, (old: any) => {
         if (!old) return old;
-
         return {
           ...old,
           tasks: old.tasks.map((t: any) =>
@@ -72,21 +74,21 @@ export function TaskTable({ tasks, pagination }: TaskTableProps) {
           ),
         };
       });
-
       return { previousData };
     },
-
     onError: (err, variables, context) => {
       context?.previousData?.forEach(([key, value]) => {
         queryClient.setQueryData(key, value);
       });
       toast.error("Failed to update status");
     },
-
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      setTogglingId(null); // 👈 always clear
+      queryClient.invalidateQueries({ queryKey: ["tasks"], exact: false });
     },
   });
+
+  const totalPages = Math.max(pagination.totalPages, 1); // never less than 1
 
   return (
     <div className="space-y-4">
@@ -113,13 +115,15 @@ export function TaskTable({ tasks, pagination }: TaskTableProps) {
             ) : (
               tasks.map((task) => {
                 const isCompleted = task.status === "DONE";
+                const isDeleting = deletingId === task.id; // 👈 per-task check
+                const isToggling = togglingId === task.id; // 👈 per-task check
 
                 return (
                   <TableRow key={task.id} className="group transition-colors">
                     <TableCell>
                       <Checkbox
                         checked={isCompleted}
-                        disabled={toggleMutation.isPending}
+                        disabled={isToggling} // 👈 only this task's checkbox
                         onCheckedChange={() => {
                           const nextStatus = isCompleted ? "TODO" : "DONE";
                           toggleMutation.mutate({
@@ -145,7 +149,7 @@ export function TaskTable({ tasks, pagination }: TaskTableProps) {
                       <Button
                         variant="ghost"
                         size="icon"
-                        disabled={deleteMutation.isPending}
+                        disabled={isDeleting}
                         onClick={() => {
                           if (confirm("Permanently delete this task?")) {
                             deleteMutation.mutate(task.id);
@@ -153,7 +157,7 @@ export function TaskTable({ tasks, pagination }: TaskTableProps) {
                         }}
                         className="hover:opacity-100 hover:text-destructive transition-all"
                       >
-                        {deleteMutation.isPending ? (
+                        {isDeleting ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
                           <Trash2 className="h-4 w-4" />
@@ -168,7 +172,6 @@ export function TaskTable({ tasks, pagination }: TaskTableProps) {
         </Table>
       </div>
 
-      {/* --- PAGINATION CONTROLS --- */}
       <div className="flex items-center justify-between px-2 py-4 border-t">
         <div className="text-sm text-muted-foreground font-medium">
           Showing <span className="text-foreground">{tasks.length}</span> of{" "}
@@ -185,13 +188,13 @@ export function TaskTable({ tasks, pagination }: TaskTableProps) {
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <div className="text-sm font-medium">
-            Page {pagination.page} of {pagination.totalPages}
+            Page {pagination.page} of {totalPages}
           </div>
           <Button
             variant="outline"
             size="sm"
             onClick={() => handlePageChange(pagination.page + 1)}
-            disabled={pagination.page >= pagination.totalPages}
+            disabled={pagination.page >= totalPages}
             className="h-8 w-8 p-0"
           >
             <ChevronRight className="h-4 w-4" />
