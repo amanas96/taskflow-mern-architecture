@@ -26,6 +26,9 @@ export default function TasksPage() {
     },
     placeholderData: (previousData) => previousData,
     staleTime: 5000,
+    gcTime: 1000 * 60 * 10,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 
   return (

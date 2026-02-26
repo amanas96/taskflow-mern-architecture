@@ -27,7 +27,7 @@ export const useAuthStore = create<AuthState>()(
         try {
           await api.post("/auth/logout");
 
-          await fetch("/api/auth/proxy", { method: "DELETE" });
+          await fetch("/api/auth/proxy", { method: "POST" });
         } catch (error) {
           console.error("Logout failed:", error);
         } finally {

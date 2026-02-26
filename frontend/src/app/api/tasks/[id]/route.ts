@@ -19,6 +19,7 @@ export async function PATCH(
         "Content-Type": "application/json",
         Authorization: request.headers.get("authorization") || "",
       },
+      cache: "no-store",
       body: JSON.stringify(body),
       credentials: "include",
     });
