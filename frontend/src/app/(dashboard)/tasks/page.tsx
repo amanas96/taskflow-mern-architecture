@@ -28,7 +28,6 @@ export default function TasksPage() {
     staleTime: 5000,
     gcTime: 1000 * 60 * 10,
     refetchOnWindowFocus: false,
-    refetchOnMount: false,
   });
 
   return (

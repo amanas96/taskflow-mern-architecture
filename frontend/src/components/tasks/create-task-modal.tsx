@@ -32,7 +32,7 @@ export function CreateTaskModal() {
   const { mutate, isPending } = useMutation({
     mutationFn: (data: any) => api.post("/tasks", data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["tasks"], exact: false });
       toast.success("Task created successfully");
       reset();
       setOpen(false);
